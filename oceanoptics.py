@@ -58,7 +58,7 @@ config_regs = {\
 class USB4000(object):
     '''Class representing Ocean Optics spectrometer'''
     
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     idVendor = 0x2457
     idProduct = 0x1022
@@ -78,19 +78,18 @@ class USB4000(object):
     def __init__(self):
         logging.debug('In init!')
         
-        if self._device.is_kernel_driver_active(0):
-            try:
-                self._device.detach_kernel_driver(0)
-            except usb.core.USBError as e:
-                logging.fatal("Could not detatch kernel driver: %s" % str(e))
-                raise e
+        try:
+            if self._device.is_kernel_driver_active(0):
+                    self._device.detach_kernel_driver(0)
+        except (usb.core.USBError, NotImplementedError) as e:
+            logging.error(e)
                 
         try:
             self._device.set_configuration() # There is only one configuration
             self._device.reset()
         except usb.core.USBError as e:
-            logging.fatal("could not set configuration" % str(e))
-            raise e
+            logging.fatal("could not set configuration")
+            raise RuntimeError('failed to set configuration')
             
         cfg = self._device.get_active_configuration()
         
@@ -204,19 +203,24 @@ class USB4000(object):
         logging.debug('Sending {:s}'.format(repr(cmd)))
         self._cmd_w.write(cmd)
         
-        data_lo = self._spec_lo.read(512*4, timeout=20)
-        data_hi = self._spec_hi.read(512*11, timeout=20)
-
-        data_sync = self._spec_hi.read(1, timeout=20)
-
-        assert struct.unpack('<B', data_sync)[0] == 0x69
-        
         data = numpy.zeros(shape=(3840,), dtype='<u2')
+        
+        try:
+            data_lo = self._spec_lo.read(512*4, timeout=20)
+            data_hi = self._spec_hi.read(512*11, timeout=20)
 
-        data[:1024], data[1024:] =  numpy.frombuffer(data_lo, dtype='<u2'), \
-                                    numpy.frombuffer(data_hi, dtype='<u2')
+            data_sync = self._spec_hi.read(1, timeout=20)
 
-        logging.debug('obtained spectra')
+            assert struct.unpack('<B', data_sync)[0] == 0x69
+
+            data[:1024], data[1024:] =  numpy.frombuffer(data_lo, dtype='<u2'), \
+                                        numpy.frombuffer(data_hi, dtype='<u2')
+        except AssertionError:
+            logging.error('not synchronized')
+        except usb.core.USBError:
+            logging.error('timeout on usb')
+        finally:
+            logging.debug('obtained spectra')
 
         return data
 

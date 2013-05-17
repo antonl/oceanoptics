@@ -20,7 +20,10 @@ class USB4000Dialog(QMainWindow, Ui_MainWindow):
         self.graphicsView.setXRange(0, 3840)
         self.graphicsView.enableAutoRange(axis='y')
 
-        self.dev = USB4000()
+        try:
+            self.dev = USB4000()
+        except:
+            raise RuntimeError('Could not initialize device')
 
         self.spinBox.sigValueChanged.connect(self.change_integration_time)
         self.spinBox.setOpts(bounds=(10*1e-6, 6553500*1e-6), suffix='s', siPrefix=True, \
@@ -35,7 +38,7 @@ class USB4000Dialog(QMainWindow, Ui_MainWindow):
 
     def show(self):
         self.temp_timer.start(1000)
-        self.spectra_timer.start(25)
+        self.spectra_timer.start(100)
         super(QMainWindow, self).show()
         
     def update_spectrum(self):
@@ -55,7 +58,10 @@ class USB4000Dialog(QMainWindow, Ui_MainWindow):
 
 app = QtGui.QApplication(sys.argv)
 
-ex = USB4000Dialog()
-ex.show()
-sys.exit(app.exec_())
+try:
+    ex = USB4000Dialog()
+    ex.show()
+    sys.exit(app.exec_())
+except RuntimeError as e:
+    print e
 
