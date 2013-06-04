@@ -181,7 +181,7 @@ class USB4000(object):
         resp = bytearray(self._cmd_r.read(3, timeout=200))
         logging.debug('got {:s}'.format(repr(resp)))
         
-        #assert resp[0:1] == bytearray([0x04]) # Check that proper echo is returned
+        assert resp[0:1] == bytearray([0x04]) # Check that proper echo is returned
         
         vers = struct.unpack('>H', resp[1:3])[0]
         logging.info('firmware is {:d}'.format(vers))
@@ -206,10 +206,10 @@ class USB4000(object):
         data = numpy.zeros(shape=(3840,), dtype='<u2')
         
         try:
-            data_lo = self._spec_lo.read(512*4, timeout=20)
-            data_hi = self._spec_hi.read(512*11, timeout=20)
+            data_lo = self._spec_lo.read(512*4, timeout=100)
+            data_hi = self._spec_hi.read(512*11, timeout=100)
 
-            data_sync = self._spec_hi.read(1, timeout=20)
+            data_sync = self._spec_hi.read(1, timeout=100)
 
             assert struct.unpack('<B', data_sync)[0] == 0x69
 
