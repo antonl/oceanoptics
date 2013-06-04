@@ -173,7 +173,7 @@ class USB4000(object):
         assert resp[0:1] == bytearray([0x08]) # Check that proper echo is returned
         
         t = struct.unpack('<h', resp[1:3])[0]
-        log.info('temperature is {}'.format(t*0.003906))
+        log.debug('temperature is {}'.format(t*0.003906))
         return t*0.003906
     
     def firmware_version(self):
