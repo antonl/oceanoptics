@@ -2,14 +2,22 @@ from PyQt4 import QtGui
 from PyQt4.QtCore import QTimer
 from PyQt4.QtGui import QMainWindow
 
-from Queue import Queue
+import time
 import threading
+import sys
+from collections import deque
 
 from ui_oceanoptics import Ui_MainWindow
 from oceanoptics import USB4000
 
+import logging
+
+log = logging.getLogger('oceanoptics.gui')
+
+log.setLevel(logging.INFO)
+
 class Ui_USB4000(QMainWindow, Ui_MainWindow):
-    def __init__(self, data_q):
+    def __init__(self):
         # Set up everything
         QMainWindow.__init__(self)
 
@@ -30,24 +38,32 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         self.temp_timer = QTimer()
         self.temp_timer.timeout.connect(self.update_temp)
+        
+        self.worker = Usb4000Thread()
 
     def update_spectrum(self):
-            self.data = self.data_q.get()
-            self.curve.setData(self.data[3:3650])
+            self.data = self.worker.get_spectrum()
+
+            if self.data != None:
+                self.curve.setData(self.data[3:3650])
 
     def update_temp(self):
+        '''
             data = self.temp_q.get()
             self.lcdNumber.setProperty('value', data)
+        '''
+        pass
 
     def change_integration_time(self):
-        self.dev.set_integration_time(int(self.spinBox.value()*1e6))
+        self.worker.set_integration_time(int(self.spinBox.value()*1e6))
 
     def close(self):
-        self.dev.close()
+        self.worker.join()
 
     def show(self):
         self.temp_timer.start(1000)
-        self.spectra_timer.start(100)
+        self.spectra_timer.start(25)
+        self.worker.start()
         super(QMainWindow, self).show()
         
     def closeEvent(self, event):
@@ -55,31 +71,55 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
 class Usb4000Thread(threading.Thread):
     def __init__(self):
-        self.dev = USB4000()
+        super(Usb4000Thread, self).__init__()
 
-        self.data_q = Queue()
-        self.temp_q = Queue()
-        self.cmd_q = Queue()
-        
+        self.dev = USB4000()
+        self.cmd_q = deque()
+
+        self.data = None
         self.is_active = threading.Event()
 
+    def get_spectrum(self):
+        # add spectrum to queue
+        self.cmd_q.append((self._spectrum, []))
+
+        # and return a dataset
+        return self.data
+        
+    def _spectrum(self):
+        try:
+            self.data = self.dev.request_spectra()
+        except usb.USBError as e:
+            log.error('could not request spectrum')
+            log.error(repr(e))
+
+    def set_integration_time(self, val):
+        self.cmd_q.append((self._integration_time, [val]))
+
+    def _integration_time(self, val):
+        try:
+            self.dev.set_integration_time(val)
+        except Exception as e:
+            log.error('could not set integration time')
+            log.error(repr(e))
+
     def run(self):
+        self.is_active.set()
+
         while self.is_active.is_set():
             try:
-                cmd, args = self.cmd_q.get()
-                res = cmd(*args)
-            except queue.Empty as e:
-                time.sleep(10)
+                cmd, args = self.cmd_q.pop()
+                cmd(*args)
+                log.info('executed command {}'.format(repr(cmd)))
+            except IndexError:
+                log.debug('empty queue')
+                time.sleep(0.001)
 
-    def test(self):
-        
-        
+    def join(self):
+        self.is_active.clear()
+        super(Usb4000Thread, self).join(self)
+
 # Try to create a worker thread that polls device
-try:
-    self.dev = USB4000()
-except:
-    raise RuntimeError('Could not initialize device')
-
 app = QtGui.QApplication(sys.argv)
 
 try:

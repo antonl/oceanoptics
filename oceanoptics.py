@@ -4,6 +4,10 @@ import usb.util
 import struct
 import numpy 
 
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+log = logging.getLogger('oceanoptics.hardware')
+
+log.setLevel(logging.INFO)
 __all__ = ['USB4000']
 
 commands = { \
@@ -58,13 +62,13 @@ config_regs = {\
 class USB4000(object):
     '''Class representing Ocean Optics spectrometer'''
     
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     idVendor = 0x2457
     idProduct = 0x1022
     
     def __new__(cls, id=0):
         avail = usb.core.find(idVendor=cls.idVendor, idProduct=cls.idProduct)
+
         if avail is None:
             raise RuntimeError('no ocean optics devices found')
         
@@ -76,19 +80,19 @@ class USB4000(object):
         return obj
     
     def __init__(self):
-        logging.debug('In init!')
+        log.debug('In init!')
         
         try:
             if self._device.is_kernel_driver_active(0):
                     self._device.detach_kernel_driver(0)
         except (usb.core.USBError, NotImplementedError) as e:
-            logging.error(e)
+            log.error(repr(e))
                 
         try:
             self._device.set_configuration() # There is only one configuration
             self._device.reset()
         except usb.core.USBError as e:
-            logging.fatal("could not set configuration")
+            log.fatal("could not set configuration")
             raise RuntimeError('failed to set configuration')
             
         cfg = self._device.get_active_configuration()
@@ -115,92 +119,92 @@ class USB4000(object):
         This command sets the integration time that the USB4000 uses when acquiring spectra. The
         value is passed as a 32 bit integer and has a valid range between 10 and 65,535,000 us. 
         '''
-        logging.debug('setting {} for the integration time'.format(repr(dt)))
+        log.debug('setting {} for the integration time'.format(repr(dt)))
         if isinstance(dt, int):
 
             if dt < 10: 
-                logging.warning('integration time {:d} too low, setting to minimum of 10us'.format(dt))
+                log.warning('integration time {:d} too low, setting to minimum of 10us'.format(dt))
                 dt = 10 # can't integrate for less than 10 us
             if dt > 65535000: # largest value of 32 bit unsigned int
-                logging.warning('integration time {:d} too high, setting to maximum of 65,535,000 us'.format(dt))
+                log.warning('integration time {:d} too high, setting to maximum of 65,535,000 us'.format(dt))
                 dt = 65535000 # can't integrate for less than 10 us
                 
             cmd = struct.pack('<BI', 0x02, dt)
-            logging.debug('Sending {:s}'.format(repr(cmd)))
+            log.debug('Sending {:s}'.format(repr(cmd)))
             return self._cmd_w.write(cmd)
         
-        logging.info('wrong type of data in set_integration_time, {}'.format(type(dt)))
+        log.info('wrong type of data in set_integration_time, {}'.format(type(dt)))
         
     def query_config(self):
         '''returns the value stored in register `reg` of the spectrometer
         '''
-        logging.debug('getting configuration parameters')
+        log.debug('getting configuration parameters')
         
         config = {}
         
         for x in xrange(19):
             cmd = struct.pack('<2B', 0x05, x)
-            logging.debug('Sending {:s}'.format(repr(cmd)))
+            log.debug('Sending {:s}'.format(repr(cmd)))
             self._cmd_w.write(cmd)
             resp = bytearray(self._cmd_r.read(64, timeout=1000))
-            logging.debug('config {:d} is {:s}'.format(x, repr(resp)))
+            log.debug('config {:d} is {:s}'.format(x, repr(resp)))
             
             assert resp[0:2] == bytearray([0x05, x]) # Check that proper echo is returned
             
-            logging.info('{:s} : {:s}'.format(config_regs[x], resp[2:].decode('ascii', errors='ignore')))
+            log.info('{:s} : {:s}'.format(config_regs[x], resp[2:].decode('ascii', errors='ignore')))
             config.update({config_regs[x] : resp[2:].decode('ascii', errors='ignore').strip('\x00')})
             
         return config
             
     def reset(self):
-        logging.debug('resetting device')
+        log.debug('resetting device')
         self._device.reset()
     
     def read_temp(self):
-        logging.debug('getting pcb temperature')
+        log.debug('getting pcb temperature')
         cmd = struct.pack('<B', 0x6C)
         self._cmd_w.write(cmd)
         
-        logging.debug('sending {:s}'.format(repr(cmd)))
+        log.debug('sending {:s}'.format(repr(cmd)))
         
         resp = bytearray(self._cmd_r.read(3, timeout=1000))
-        logging.debug('got {:s}'.format(repr(resp)))
+        log.debug('got {:s}'.format(repr(resp)))
         
         assert resp[0:1] == bytearray([0x08]) # Check that proper echo is returned
         
         t = struct.unpack('<h', resp[1:3])[0]
-        logging.info('temperature is {}'.format(t*0.003906))
+        log.info('temperature is {}'.format(t*0.003906))
         return t*0.003906
     
     def firmware_version(self):
-        logging.debug('getting firmware version')
+        log.debug('getting firmware version')
         cmd = struct.pack('<2B', 0x6B, 0x04)
-        logging.debug('sending {:s}'.format(repr(cmd)))
+        log.debug('sending {:s}'.format(repr(cmd)))
         self._cmd_w.write(cmd)
         
         resp = bytearray(self._cmd_r.read(3, timeout=200))
-        logging.debug('got {:s}'.format(repr(resp)))
+        log.debug('got {:s}'.format(repr(resp)))
         
         assert resp[0:1] == bytearray([0x04]) # Check that proper echo is returned
         
         vers = struct.unpack('>H', resp[1:3])[0]
-        logging.info('firmware is {:d}'.format(vers))
+        log.info('firmware is {:d}'.format(vers))
         return vers
     
     def set_trigger_mode(self, mode=0):
-        logging.debug('setting {} for the trigger mode'.format(repr(mode)))
+        log.debug('setting {} for the trigger mode'.format(repr(mode)))
         if isinstance(mode, int):
             cmd = struct.pack('<BH', 0x0A, mode)
-            logging.debug('Sending {:s}'.format(repr(cmd)))
+            log.debug('Sending {:s}'.format(repr(cmd)))
             return self._cmd_w.write(cmd)
         
-        logging.info('wrong type of data in set_trigger_mode {}'.format(type(mode)))
+        log.info('wrong type of data in set_trigger_mode {}'.format(type(mode)))
         
       
     def request_spectra(self):
         cmd = struct.pack('<B', 0x09)
-        logging.debug('Requesting spectra')
-        logging.debug('Sending {:s}'.format(repr(cmd)))
+        log.debug('Requesting spectra')
+        log.debug('Sending {:s}'.format(repr(cmd)))
         self._cmd_w.write(cmd)
         
         data = numpy.zeros(shape=(3840,), dtype='<u2')
@@ -216,22 +220,22 @@ class USB4000(object):
             data[:1024], data[1024:] =  numpy.frombuffer(data_lo, dtype='<u2'), \
                                         numpy.frombuffer(data_hi, dtype='<u2')
         except AssertionError:
-            logging.error('not synchronized')
+            log.error('not synchronized')
         except usb.core.USBError:
-            logging.error('timeout on usb')
+            log.error('timeout on usb')
         finally:
-            logging.debug('obtained spectra')
+            log.debug('obtained spectra')
 
         return data
 
     def get_status(self):
-        logging.debug('getting status parameters')
+        log.debug('getting status parameters')
         
         cmd = struct.pack('<B', 0xFE)
-        logging.debug('Sending {:s}'.format(repr(cmd)))
+        log.debug('Sending {:s}'.format(repr(cmd)))
         self._cmd_w.write(cmd)
         resp = bytearray(self._cmd_r.read(16, timeout=1000))
-        logging.debug('status is {:s}'.format(repr(resp)))
+        log.debug('status is {:s}'.format(repr(resp)))
         
         stat = {\
             'num_pixels' : struct.unpack('<H', resp[0:2])[0],
