@@ -1,6 +1,7 @@
 from PyQt4 import QtGui
 from PyQt4.QtCore import QTimer
 from PyQt4.QtGui import QMainWindow
+import pyqtgraph
 
 import time
 import threading
@@ -25,8 +26,12 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         self.curve = self.graphicsView.plot(pen='g')
         
-        self.graphicsView.setXRange(0, 3840)
-        self.graphicsView.enableAutoRange(axis='y')
+        self.graphicsView.showGrid(x=True, y=True)
+        self.graphicsView.setMenuEnabled(False)
+        view = self.graphicsView.getViewBox()
+        view.setMouseMode(pyqtgraph.ViewBox.RectMode)
+
+        view.setRange(xRange=(0, 3660), padding=0)
 
         self.spinBox.setValue(0.001)
         self.spinBox.setOpts(bounds=(10*1e-6, 6553500*1e-6), suffix='s', siPrefix=True, \
@@ -47,6 +52,7 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         if self.data != None:
             self.curve.setData(self.data[3:3660]) 
+
     def update_temp(self):
         res = self.worker.get_temp()
 
@@ -90,7 +96,7 @@ class Usb4000Thread(threading.Thread):
     def _spectrum(self):
         try:
             self.data = self.dev.request_spectra()
-        except usb.USBError as e:
+        except Exception as e:
             log.error('could not request spectrum')
             log.error(repr(e))
 
@@ -123,7 +129,7 @@ class Usb4000Thread(threading.Thread):
                 cmd(*args)
                 log.debug('executed command {}'.format(repr(cmd)))
             except IndexError:
-                time.sleep(0.001)
+                time.sleep(0.005)
 
     def join(self):
         self.is_active.clear()

@@ -62,7 +62,6 @@ config_regs = {\
 class USB4000(object):
     '''Class representing Ocean Optics spectrometer'''
     
-
     idVendor = 0x2457
     idProduct = 0x1022
     
