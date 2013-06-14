@@ -24,12 +24,15 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         self.setupUi(self)
 
-        self.curve = self.graphicsView.plot(pen='g')
-        
+        self.curves = []         
+
+        for i in xrange(1):
+            self.curves.append(self.graphicsView.plot(alpha=0.1*(i+1), pen='g'))
+
         self.graphicsView.showGrid(x=True, y=True)
         self.graphicsView.setMenuEnabled(False)
         view = self.graphicsView.getViewBox()
-        view.setMouseMode(pyqtgraph.ViewBox.RectMode)
+        view.setMouseMode(pyqtgraph.ViewBox.PanMode)
 
         view.setRange(xRange=(0, 3660), padding=0)
 
@@ -46,12 +49,14 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
         self.temp_timer.timeout.connect(self.update_temp)
 
         self.worker = Usb4000Thread()
+        self.data_stack = deque(maxlen=1)
 
     def update_spectrum(self):
-        self.data = self.worker.get_spectrum()
-
-        if self.data != None:
-            self.curve.setData(self.data[3:3660]) 
+        self.data_stack.append(self.worker.get_spectrum())
+        for i in xrange(len(self.data_stack)):
+            d = self.data_stack[i]   
+            if d != None: 
+                self.curves[i].setData(d[3:3660])
 
     def update_temp(self):
         res = self.worker.get_temp()
