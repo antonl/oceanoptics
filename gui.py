@@ -26,8 +26,8 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         self.curves = []         
 
-        for i in xrange(1):
-            self.curves.append(self.graphicsView.plot(alpha=0.1*(i+1), pen='g'))
+        self.change_persistence()
+        self.persistenceBox.sigValueChanged.connect(self.change_persistence)
 
         self.graphicsView.showGrid(x=True, y=True)
         self.graphicsView.setMenuEnabled(False)
@@ -41,7 +41,7 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
                 dec=True, step=1)
 
         self.spinBox.sigValueChanged.connect(self.change_integration_time)
-        
+
         self.spectra_timer = QTimer()
         self.spectra_timer.timeout.connect(self.update_spectrum)
 
@@ -49,7 +49,6 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
         self.temp_timer.timeout.connect(self.update_temp)
 
         self.worker = Usb4000Thread()
-        self.data_stack = deque(maxlen=1)
 
     def update_spectrum(self):
         self.data_stack.append(self.worker.get_spectrum())
@@ -66,6 +65,18 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
     def change_integration_time(self):
         self.worker.set_integration_time(int(self.spinBox.value()*1e6))
+
+    def change_persistence(self):
+        # remove all curves
+        for i in self.curves: self.graphicsView.removeItem(i)
+        # add new curves
+        val = self.persistenceBox.value()
+        alpha_inc = int(255/val)
+
+        for i in xrange(val): 
+            self.curves.append(self.graphicsView.plot(pen=pyqtgraph.mkPen(0, 255, 0, i*alpha_inc))
+
+        self.data_stack = deque(maxlen=val)
 
     def close(self):
         self.worker.join()
