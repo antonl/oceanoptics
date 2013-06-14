@@ -1,6 +1,6 @@
 from PyQt4 import QtGui
 from PyQt4.QtCore import QTimer
-from PyQt4.QtGui import QMainWindow
+from PyQt4.QtGui import QMainWindow, QColor
 import pyqtgraph
 
 import time
@@ -24,16 +24,11 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         self.setupUi(self)
 
-        self.curves = []         
-
-        self.change_persistence()
-        self.persistenceBox.sigValueChanged.connect(self.change_persistence)
-
         self.graphicsView.showGrid(x=True, y=True)
         self.graphicsView.setMenuEnabled(False)
+
         view = self.graphicsView.getViewBox()
         view.setMouseMode(pyqtgraph.ViewBox.PanMode)
-
         view.setRange(xRange=(0, 3660), padding=0)
 
         self.spinBox.setValue(0.001)
@@ -50,11 +45,21 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
         self.worker = Usb4000Thread()
 
+        self.curves = []         
+        self.change_persistence()
+        self.persistenceBox.valueChanged.connect(self.change_persistence)
+
     def update_spectrum(self):
         self.data_stack.append(self.worker.get_spectrum())
+
         for i in xrange(len(self.data_stack)):
             d = self.data_stack[i]   
             if d != None: 
+                log.debug('plotting curve %d', i)
+                if i == len(self.data_stack)-1:
+                    self.curves[i].setPen(color=(0, 255, 0))
+                else:
+                    self.curves[i].setPen(color=(0, (i+1)*self.alpha_inc, 0))
                 self.curves[i].setData(d[3:3660])
 
     def update_temp(self):
@@ -67,16 +72,26 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
         self.worker.set_integration_time(int(self.spinBox.value()*1e6))
 
     def change_persistence(self):
+
+        self.spectra_timer.stop()
+        log.info('persistence changed')
         # remove all curves
         for i in self.curves: self.graphicsView.removeItem(i)
+
+        self.curves = []
         # add new curves
         val = self.persistenceBox.value()
-        alpha_inc = int(255/val)
+        alpha_inc = int(100/val)
+        self.alpha_inc = alpha_inc
+        log.info('alpha inc %d', alpha_inc)
 
         for i in xrange(val): 
-            self.curves.append(self.graphicsView.plot(pen=pyqtgraph.mkPen(0, 255, 0, i*alpha_inc))
+            log.info('added %d item', i)
+            self.curves.append(self.graphicsView.plot())
 
         self.data_stack = deque(maxlen=val)
+        log.info('maxlen is %d', val)
+        self.spectra_timer.start(25)
 
     def close(self):
         self.worker.join()
