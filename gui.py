@@ -15,7 +15,7 @@ import logging
 
 log = logging.getLogger('oceanoptics.gui')
 
-log.setLevel(logging.INFO)
+log.setLevel(logging.CRITICAL)
 
 class Ui_USB4000(QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -44,6 +44,7 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
         self.temp_timer.timeout.connect(self.update_temp)
 
         self.worker = Usb4000Thread()
+        self.wavelength_mapping = self.worker.dev.get_wavelength_mapping()
 
         self.curves = []         
         self.change_persistence()
@@ -60,7 +61,7 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
                     self.curves[i].setPen(color=(0, 255, 0))
                 else:
                     self.curves[i].setPen(color=(0, (i+1)*self.alpha_inc, 0))
-                self.curves[i].setData(d[3:3660])
+                self.curves[i].setData(self.wavelength_mapping, d[3:])
 
     def update_temp(self):
         res = self.worker.get_temp()
@@ -98,7 +99,7 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
     def show(self):
         self.temp_timer.start(1000)
-        self.spectra_timer.start(25)
+        self.spectra_timer.start(50)
         self.worker.start()
         super(QMainWindow, self).show()
         
@@ -132,14 +133,14 @@ class Usb4000Thread(threading.Thread):
             log.error(repr(e))
 
     def get_temp(self):
-        self.cmd_q.clear()
+        #self.cmd_q.clear()
         self.cmd_q.append((self._temp, []))
         
         return self.temp
 
     def _temp(self):
         self.temp = self.dev.read_temp()
-
+    
     def set_integration_time(self, val):
         self.cmd_q.clear()
         self.cmd_q.append((self._integration_time, [val]))

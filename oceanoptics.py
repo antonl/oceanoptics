@@ -137,7 +137,7 @@ class USB4000(object):
     def query_config(self):
         '''returns the value stored in register `reg` of the spectrometer
         '''
-        log.debug('getting configuration parameters')
+        log.info('getting configuration parameters')
         
         config = {}
         
@@ -199,6 +199,21 @@ class USB4000(object):
         
         log.info('wrong type of data in set_trigger_mode {}'.format(type(mode)))
         
+    def get_wavelength_mapping(self):
+        # Find out how to interpret coefficients
+        config = self.query_config()
+        x0 = float(config['0_order_wavelength_coeff'])
+        x1 = float(config['1_order_wavelength_coeff'])
+        x2 = float(config['2_order_wavelength_coeff'])
+        x3 = float(config['3_order_wavelength_coeff'])
+        
+        def _get_wavelength_mapping(px):
+            return x0 + x1*px + x2*px**2 + x3*px**3
+
+        log.info("wavelegth mapping: ")
+        log.info(_get_wavelength_mapping(numpy.arange(3, 3648)))
+        return _get_wavelength_mapping(numpy.arange(3,3648))
+
       
     def request_spectra(self):
         cmd = struct.pack('<B', 0x09)
@@ -225,7 +240,7 @@ class USB4000(object):
         finally:
             log.debug('obtained spectra')
 
-        return data
+        return data[:3648]
 
     def get_status(self):
         log.debug('getting status parameters')
