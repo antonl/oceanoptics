@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'oceanoptics_gui.ui'
 #
-# Created: Fri Jun 14 16:00:13 2013
-#      by: PyQt4 UI code generator 4.9.4
+# Created: Sat Feb  1 12:50:02 2014
+#      by: PyQt4 UI code generator 4.10.3
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -12,7 +12,16 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    _fromUtf8 = lambda s: s
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -64,20 +73,6 @@ class Ui_MainWindow(object):
         self.spinBox.setProperty("value", 10)
         self.spinBox.setObjectName(_fromUtf8("spinBox"))
         self.formLayout.setWidget(0, QtGui.QFormLayout.FieldRole, self.spinBox)
-        self.label_4 = QtGui.QLabel(self.groupBox)
-        self.label_4.setObjectName(_fromUtf8("label_4"))
-        self.formLayout.setWidget(1, QtGui.QFormLayout.LabelRole, self.label_4)
-        self.persistenceBox = QtGui.QSpinBox(self.groupBox)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.persistenceBox.sizePolicy().hasHeightForWidth())
-        self.persistenceBox.setSizePolicy(sizePolicy)
-        self.persistenceBox.setMinimumSize(QtCore.QSize(100, 0))
-        self.persistenceBox.setMinimum(1)
-        self.persistenceBox.setMaximum(10)
-        self.persistenceBox.setObjectName(_fromUtf8("persistenceBox"))
-        self.formLayout.setWidget(1, QtGui.QFormLayout.FieldRole, self.persistenceBox)
         self.label_3 = QtGui.QLabel(self.groupBox)
         self.label_3.setObjectName(_fromUtf8("label_3"))
         self.formLayout.setWidget(2, QtGui.QFormLayout.LabelRole, self.label_3)
@@ -95,6 +90,26 @@ class Ui_MainWindow(object):
         self.lcdNumber.setProperty("value", 25.0)
         self.lcdNumber.setObjectName(_fromUtf8("lcdNumber"))
         self.formLayout.setWidget(2, QtGui.QFormLayout.FieldRole, self.lcdNumber)
+        self.persistenceBox = QtGui.QSpinBox(self.groupBox)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.persistenceBox.sizePolicy().hasHeightForWidth())
+        self.persistenceBox.setSizePolicy(sizePolicy)
+        self.persistenceBox.setMinimumSize(QtCore.QSize(100, 0))
+        self.persistenceBox.setMinimum(1)
+        self.persistenceBox.setMaximum(10)
+        self.persistenceBox.setObjectName(_fromUtf8("persistenceBox"))
+        self.formLayout.setWidget(1, QtGui.QFormLayout.FieldRole, self.persistenceBox)
+        self.label_4 = QtGui.QLabel(self.groupBox)
+        self.label_4.setObjectName(_fromUtf8("label_4"))
+        self.formLayout.setWidget(1, QtGui.QFormLayout.LabelRole, self.label_4)
+        self.label_2 = QtGui.QLabel(self.groupBox)
+        self.label_2.setObjectName(_fromUtf8("label_2"))
+        self.formLayout.setWidget(3, QtGui.QFormLayout.LabelRole, self.label_2)
+        self.wavelength_label = QtGui.QLabel(self.groupBox)
+        self.wavelength_label.setObjectName(_fromUtf8("wavelength_label"))
+        self.formLayout.setWidget(3, QtGui.QFormLayout.FieldRole, self.wavelength_label)
         self.horizontalLayout.addLayout(self.formLayout)
         self.gridLayout.addWidget(self.groupBox, 1, 0, 1, 1)
         self.frame = QtGui.QFrame(self.centralwidget)
@@ -117,10 +132,12 @@ class Ui_MainWindow(object):
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "USB4000 GUI", None, QtGui.QApplication.UnicodeUTF8))
-        self.groupBox.setTitle(QtGui.QApplication.translate("MainWindow", "Settings", None, QtGui.QApplication.UnicodeUTF8))
-        self.label.setText(QtGui.QApplication.translate("MainWindow", "Integration time", None, QtGui.QApplication.UnicodeUTF8))
-        self.label_4.setText(QtGui.QApplication.translate("MainWindow", "Persistence", None, QtGui.QApplication.UnicodeUTF8))
-        self.label_3.setText(QtGui.QApplication.translate("MainWindow", "Temperature", None, QtGui.QApplication.UnicodeUTF8))
+        MainWindow.setWindowTitle(_translate("MainWindow", "USB4000 GUI", None))
+        self.groupBox.setTitle(_translate("MainWindow", "Settings", None))
+        self.label.setText(_translate("MainWindow", "Integration time", None))
+        self.label_3.setText(_translate("MainWindow", "Temperature", None))
+        self.label_4.setText(_translate("MainWindow", "Persistence", None))
+        self.label_2.setText(_translate("MainWindow", "Wavelength", None))
+        self.wavelength_label.setText(_translate("MainWindow", "0 nm", None))
 
 from pyqtgraph import SpinBox, PlotWidget

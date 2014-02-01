@@ -50,6 +50,29 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
         self.change_persistence()
         self.persistenceBox.valueChanged.connect(self.change_persistence)
 
+        pg = pyqtgraph
+        vLine = pg.InfiniteLine(angle=90, movable=False)
+        hLine = pg.InfiniteLine(angle=0, movable=False)
+        self.graphicsView.addItem(vLine, ignoreBounds=True)
+        self.graphicsView.addItem(hLine, ignoreBounds=True)
+
+        vb = self.graphicsView.getPlotItem().vb
+
+        def mouseMoved(evt):
+            pos = evt  ## using signal proxy turns original arguments into a tuple
+            if self.graphicsView.sceneBoundingRect().contains(pos):
+                mousePoint = vb.mapSceneToView(pos)
+                index = int(mousePoint.x())
+                if index > 0 and index < 900:
+                    self.wavelength_label.setText("<span style='font-size: 12pt'>%0.1f nm" % (mousePoint.x()))
+                vLine.setPos(mousePoint.x())
+                hLine.setPos(mousePoint.y())
+
+        proxy = pg.SignalProxy(self.graphicsView.scene().sigMouseMoved, 
+                rateLimit=10, slot=mouseMoved)
+
+        self.graphicsView.scene().sigMouseMoved.connect(mouseMoved)
+
     def update_spectrum(self):
         self.data_stack.append(self.worker.get_spectrum())
 
