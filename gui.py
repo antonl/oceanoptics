@@ -1,41 +1,31 @@
-from PyQt4 import QtGui
-from PyQt4.QtCore import QTimer
-from PyQt4.QtGui import QMainWindow, QColor
-import pyqtgraph
-
-import time
+import time 
 import threading
 import sys
 from collections import deque
 
-from ui_oceanoptics import Ui_MainWindow
-from oceanoptics import USB4000
+from PySide import QtGui
+from PySide.QtCore import QTimer
+from PySide.QtGui import QMainWindow, QGroupBox, QWidget, QHBoxLayout, QFormLayout
+import pyqtgraph as pg
 
+from oceanoptics import USB4000
 import logging
+
+import numpy as np
+
+np.seterr(divide='ignore')
 
 log = logging.getLogger('oceanoptics.gui')
 
 log.setLevel(logging.CRITICAL)
 
-class Ui_USB4000(QMainWindow, Ui_MainWindow):
-    def __init__(self):
+class SpectrometerWindow(QMainWindow):
+    def __init__(self, parent=None):
         # Set up everything
-        QMainWindow.__init__(self)
+        QMainWindow.__init__(self, parent)
+        self.setWindowTitle("USB4000 Control")
 
-        self.setupUi(self)
-
-        self.graphicsView.showGrid(x=True, y=True)
-        self.graphicsView.setMenuEnabled(False)
-
-        view = self.graphicsView.getViewBox()
-        view.setMouseMode(pyqtgraph.ViewBox.PanMode)
-        view.setRange(xRange=(0, 3660), padding=0)
-
-        self.spinBox.setValue(0.001)
-        self.spinBox.setOpts(bounds=(10*1e-6, 6553500*1e-6), suffix='s', siPrefix=True, \
-                dec=True, step=1)
-
-        self.spinBox.sigValueChanged.connect(self.change_integration_time)
+        self.make_main_frame()
 
         self.spectra_timer = QTimer()
         self.spectra_timer.timeout.connect(self.update_spectrum)
@@ -47,32 +37,88 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
         self.wavelength_mapping = self.worker.dev.get_wavelength_mapping()
 
         self.curves = []         
+        self.persistence_sb.valueChanged.connect(self.change_persistence)
         self.change_persistence()
-        self.persistenceBox.valueChanged.connect(self.change_persistence)
+        
+        self.background = 1
+        self.bg_min = 0
 
-        pg = pyqtgraph
-        vLine = pg.InfiniteLine(angle=90, movable=False)
-        hLine = pg.InfiniteLine(angle=0, movable=False)
-        self.graphicsView.addItem(vLine, ignoreBounds=True)
-        self.graphicsView.addItem(hLine, ignoreBounds=True)
+        self.use_background = False
 
-        vb = self.graphicsView.getPlotItem().vb
+        self.abs645 = pg.InfiniteLine(angle=90, movable=False)
+        self.abs663 = pg.InfiniteLine(angle=90, movable=False)
 
-        def mouseMoved(evt):
-            pos = evt  ## using signal proxy turns original arguments into a tuple
-            if self.graphicsView.sceneBoundingRect().contains(pos):
-                mousePoint = vb.mapSceneToView(pos)
-                index = int(mousePoint.x())
-                if index > 0 and index < 900:
-                    self.wavelength_label.setText("<span style='font-size: 12pt'>%0.1f nm" % (mousePoint.x()))
-                vLine.setPos(mousePoint.x())
-                hLine.setPos(mousePoint.y())
+        self.plot.addItem(self.abs645, ignoreBounds=True)
+        self.plot.addItem(self.abs663, ignoreBounds=True)
+        
+        self.abs645.setPos(645)
+        self.abs663.setPos(663)
+        
+        self.conc_deque = deque(maxlen=20)
 
-        proxy = pg.SignalProxy(self.graphicsView.scene().sigMouseMoved, 
-                rateLimit=10, slot=mouseMoved)
+    def make_main_frame(self):
+        self.main_frame = QWidget()
+        win = pg.GraphicsWindow()
+        self.crosshair_lb = pg.LabelItem(justify='right')
+        win.addItem(self.crosshair_lb) 
+        self.plot = win.addPlot(row=1, col=0) 
+        self.plot.showGrid(x=True, y=True)
+        self.right_panel = QGroupBox("Spectrometer Settings")
+        
+        hbox = QHBoxLayout()
+        for w in [win, self.right_panel]:
+            hbox.addWidget(w)
 
-        self.graphicsView.scene().sigMouseMoved.connect(mouseMoved)
+        form = QFormLayout()
+        
+        self.integration_sb = pg.SpinBox(value=0.001, bounds=(10*1e-6, 6553500*1e-6), suffix='s', siPrefix=True, \
+                dec=True, step=1)
+        self.integration_sb.valueChanged.connect(self.change_integration_time)
 
+        self.persistence_sb = QtGui.QSpinBox()
+        self.persistence_sb.setValue(7)
+        self.persistence_sb.setRange(1,10)
+        self.persistence_sb.valueChanged.connect(self.change_persistence)
+
+        self.take_background_btn = QtGui.QPushButton('Take background')
+        self.take_background_btn.clicked.connect(self.on_take_background)
+        self.conc_lb = pg.ValueLabel()
+
+        self.spec_temp_lb = pg.ValueLabel()
+
+        self.use_background_cb = QtGui.QCheckBox("enabled")
+        self.use_background_cb.stateChanged.connect(self.on_use_background)
+
+        form.addRow("Integration time", self.integration_sb)
+        form.addRow("Persistence",  self.persistence_sb)
+        
+        form.addRow("Background", self.take_background_btn)
+        form.addRow("Use background", self.use_background_cb)
+        self.right_panel.setLayout(form)
+        self.main_frame.setLayout(hbox)
+        self.setCentralWidget(self.main_frame)
+
+    def on_use_background(self):
+        if self.use_background_cb.isChecked():
+            self.spectra_timer.stop()
+            self.spectra_timer.start(500)
+            self.persistence_sb.setValue(1)
+            self.change_persistence()
+            self.use_background = True
+        else:
+            self.spectra_timer.stop()
+            self.spectra_timer.start(25)
+            self.use_background = False
+
+    def process_spectrum(self, data):
+        if self.use_background:
+            res =  np.log10(self.background) - np.log10(np.array(data, dtype='float'))
+            self.conc_deque.append((res[1455]*20.2 + res[1539]*8.02)*0.2)
+            self.crosshair_lb.setText("<span style='font-size: 12pt'>Abs645=%0.3f, <span style='color: red'>Abs663=%0.3f</span>, <span style='color: green'>Conc=%0.3f</span>" % (res[1455],res[1539], np.mean(np.array(self.conc_deque)))) 
+            return res
+        else:
+            return np.array(data, dtype='float')
+    
     def update_spectrum(self):
         self.data_stack.append(self.worker.get_spectrum())
 
@@ -81,40 +127,45 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
             if d != None: 
                 log.debug('plotting curve %d', i)
                 if i == len(self.data_stack)-1:
-                    self.curves[i].setPen(color=(0, 255, 0))
+                    self.curves[i].setPen(color=(0, 255, 0, 255))
                 else:
-                    self.curves[i].setPen(color=(0, (i+1)*self.alpha_inc, 0))
-                self.curves[i].setData(self.wavelength_mapping, d[3:])
+                    self.curves[i].setPen(color=(0, 255, 0, 50))
+                self.curves[i].setData(self.wavelength_mapping, self.process_spectrum(d))
 
     def update_temp(self):
         res = self.worker.get_temp()
 
         if res != None:
-            self.lcdNumber.setProperty('value', res)
+            self.spec_temp_lb.setText("value")
 
     def change_integration_time(self):
-        self.worker.set_integration_time(int(self.spinBox.value()*1e6))
+        self.worker.set_integration_time(int(self.integration_sb.value()*1e6))
 
     def change_persistence(self):
-
         self.spectra_timer.stop()
         log.info('persistence changed')
         # remove all curves
-        for i in self.curves: self.graphicsView.removeItem(i)
+        for i in self.curves: self.plot.removeItem(i)
 
         self.curves = []
         # add new curves
-        val = self.persistenceBox.value()
-        alpha_inc = int(100/val)
-        self.alpha_inc = alpha_inc
-        log.info('alpha inc %d', alpha_inc)
+        val = self.persistence_sb.value()
 
         for i in xrange(val): 
             log.info('added %d item', i)
-            self.curves.append(self.graphicsView.plot())
+            self.curves.append(self.plot.plot())
 
         self.data_stack = deque(maxlen=val)
         log.info('maxlen is %d', val)
+        self.spectra_timer.start(25)
+    
+    def on_take_background(self):
+        self.spectra_timer.stop()
+        self.data_stack.clear()
+
+        bg = self.worker.get_spectrum()
+        self.bg_min = np.amin(bg)
+        self.background = np.array(bg, dtype='float')
         self.spectra_timer.start(25)
 
     def close(self):
@@ -122,7 +173,7 @@ class Ui_USB4000(QMainWindow, Ui_MainWindow):
 
     def show(self):
         self.temp_timer.start(1000)
-        self.spectra_timer.start(50)
+        self.spectra_timer.start(25)
         self.worker.start()
         super(QMainWindow, self).show()
         
@@ -184,7 +235,7 @@ class Usb4000Thread(threading.Thread):
                 cmd(*args)
                 log.debug('executed command {}'.format(repr(cmd)))
             except IndexError:
-                time.sleep(0.005)
+                time.sleep(0.05)
 
     def join(self):
         self.is_active.clear()
@@ -193,7 +244,7 @@ class Usb4000Thread(threading.Thread):
 app = QtGui.QApplication(sys.argv)
 
 try:
-    ex = Ui_USB4000()
+    ex = SpectrometerWindow()
     ex.show()
     app.exec_()
 except RuntimeError as e:

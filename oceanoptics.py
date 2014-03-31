@@ -89,7 +89,7 @@ class USB4000(object):
                 
         try:
             self._device.set_configuration() # There is only one configuration
-            self._device.reset()
+            #self._device.reset()
         except usb.core.USBError as e:
             log.fatal("could not set configuration")
             raise RuntimeError('failed to set configuration')
@@ -211,8 +211,8 @@ class USB4000(object):
             return x0 + x1*px + x2*px**2 + x3*px**3
 
         log.info("wavelegth mapping: ")
-        log.info(_get_wavelength_mapping(numpy.arange(3, 3648)))
-        return _get_wavelength_mapping(numpy.arange(3,3648))
+        log.info(_get_wavelength_mapping(numpy.arange(10, 3650)))
+        return _get_wavelength_mapping(numpy.arange(10,3650))
 
       
     def request_spectra(self):
@@ -221,7 +221,7 @@ class USB4000(object):
         log.debug('Sending {:s}'.format(repr(cmd)))
         self._cmd_w.write(cmd)
         
-        data = numpy.zeros(shape=(3840,), dtype='<u2')
+        data = numpy.zeros(shape=(3840,), dtype='uint16')
         
         try:
             data_lo = self._spec_lo.read(512*4, timeout=100)
@@ -231,8 +231,8 @@ class USB4000(object):
 
             assert struct.unpack('<B', data_sync)[0] == 0x69
 
-            data[:1024], data[1024:] =  numpy.frombuffer(data_lo, dtype='<u2'), \
-                                        numpy.frombuffer(data_hi, dtype='<u2')
+            data[:1024], data[1024:] =  numpy.frombuffer(data_lo, dtype='uint16'), \
+                                        numpy.frombuffer(data_hi, dtype='uint16')
         except AssertionError:
             log.error('not synchronized')
         except usb.core.USBError:
@@ -240,7 +240,7 @@ class USB4000(object):
         finally:
             log.debug('obtained spectra')
 
-        return data[:3648]
+        return data[10:3650]
 
     def get_status(self):
         log.debug('getting status parameters')
